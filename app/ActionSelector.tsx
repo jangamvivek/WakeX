@@ -26,6 +26,14 @@ const ActionSelector = () => {
     });
   }, [navigation]);
 
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('selectedAction');
+      if (stored) setSelectedAction(stored);
+      else setSelectedAction('steps');
+    })();
+  }, []);
+
   const handleSelect = async (actionId: string) => {
     setSelectedAction(actionId);
     await AsyncStorage.setItem("selectedAction", actionId);
@@ -39,7 +47,7 @@ const ActionSelector = () => {
         <TouchableOpacity
           key={action.id}
           style={[styles.actionItem, selectedAction === action.id && styles.selectedAction]}
-          onPress={() => setSelectedAction(action.id)}
+          onPress={() => handleSelect(action.id)}
         >
           <MaterialCommunityIcons name={action.icon} size={24} color="white" />
           <Text style={styles.actionText}>{action.label}</Text>

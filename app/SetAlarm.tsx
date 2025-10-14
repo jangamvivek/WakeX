@@ -42,18 +42,24 @@ export default function SetAlarm() {
   const [selectedPeriod, setSelectedPeriod] = useState(getCurrentTime().period);
   const [volume, setVolume] = useState(0.5);
   const [selectedAction, setSelectedAction] = useState('Steps');
+  const [selectedRepeatDays, setSelectedRepeatDays] = useState<string[]>(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']);
+  const [selectedSoundName, setSelectedSoundName] = useState<string>('Wakex');
 
   useFocusEffect(
     React.useCallback(() => {
-      const fetchAction = async () => {
-        const storedAction = await AsyncStorage.getItem('selectedAction');
-        if (storedAction) {
-          // Find the corresponding label; if not found, default to "Steps"
-          const label = actions.find(a => a.id === storedAction)?.label || 'Steps';
-          setSelectedAction(label);
-        }
+      const fetchSelections = async () => {
+        // Action
+        const storedActionId = await AsyncStorage.getItem('selectedAction');
+        const actionLabel = actions.find(a => a.id === storedActionId)?.label || actions[0].label;
+        setSelectedAction(actionLabel);
+        // Repeat
+        const storedRepeat = await AsyncStorage.getItem('selectedRepeat');
+        setSelectedRepeatDays(storedRepeat ? JSON.parse(storedRepeat) : ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']);
+        // Sound
+        const storedSound = await AsyncStorage.getItem('selectedSound');
+        setSelectedSoundName(storedSound || 'Wakex');
       };
-      fetchAction();
+      fetchSelections();
     }, [])
   );
 
@@ -69,16 +75,41 @@ export default function SetAlarm() {
           <Text style={styles.headerText}>Cancel</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={async () => { const alarmData = {
+          onPress={async () => {
+            const newAlarm = {
+              id: `${Date.now()}`,
               hour: selectedHour,
               minute: selectedMinute,
               period: selectedPeriod,
               action: selectedAction,
-              repeat: 'Daily', // Replace with actual selected repeat option if dynamic
-              sound: 'Sunrise', // Replace with selected sound if dynamic
+              repeat: selectedRepeatDays,
+              sound: selectedSoundName,
               volume,
+              enabled: true,
             };
-            await AsyncStorage.setItem('alarmData', JSON.stringify(alarmData));
+            try {
+              const existing = await AsyncStorage.getItem('alarms');
+              const parsed = existing ? JSON.parse(existing) : [];
+              let updated;
+              if (Array.isArray(parsed)) {
+                const idx = parsed.findIndex((a: any) => a.hour === newAlarm.hour && a.minute === newAlarm.minute && a.period === newAlarm.period);
+                if (idx >= 0) {
+                  // Update existing alarm at same time
+                  const copy = [...parsed];
+                  copy[idx] = { ...copy[idx], ...newAlarm };
+                  updated = copy;
+                } else {
+                  updated = [...parsed, newAlarm];
+                }
+              } else {
+                updated = [newAlarm];
+              }
+              await AsyncStorage.setItem('alarms', JSON.stringify(updated));
+              // Ensure legacy key is cleared to prevent migration duplication
+              await AsyncStorage.removeItem('alarmData');
+            } catch (e) {
+              // intentionally swallow; UI stays consistent by navigating back
+            }
             router.back();
           }}>
           <Text style={styles.headerText}>Save</Text>
@@ -121,16 +152,16 @@ export default function SetAlarm() {
       {/* Options */}
       <TouchableOpacity style={styles.option} onPress={() => router.push('/ActionSelector')}>
         <Text style={styles.optionText}>Action</Text>
-        <Text style={styles.optionRightText}>Steps {'>'}</Text>
+        <Text style={styles.optionRightText}>{selectedAction} {'>'}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.option} onPress={() => router.push('/RepeatSelector')}>
         <Text style={styles.optionText}>Repeat</Text>
-        <Text style={styles.optionRightText}>Daily {'>'}</Text>
+        <Text style={styles.optionRightText}>{selectedRepeatDays.length === 7 ? 'Daily' : `${selectedRepeatDays.length} days`} {'>'}</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.option} onPress={() => router.push('/SoundPicker')}>
         <Text style={styles.optionText}>Sound</Text>
-        <Text style={styles.optionRightText}>Sunrise {'>'}</Text>
+        <Text style={styles.optionRightText}>{selectedSoundName} {'>'}</Text>
       </TouchableOpacity>
 
       {/* Volume Slider */}

@@ -3,12 +3,18 @@ import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { playAlarm, stopAlarm } from '../utils/alarmPlayer';
 
-type AlarmData = {
+type AlarmItem = {
+  id: string;
   hour: string;
   minute: string;
   period: string;
   action: string;
+  repeat?: string;
+  sound?: string;
+  volume?: number;
+  enabled?: boolean;
 };
 
 
@@ -16,8 +22,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const [alarmTime, setAlarmTime] = useState('');
-  // const [savedAlarm, setSavedAlarm] = useState(null);
-  const [savedAlarm, setSavedAlarm] = useState<AlarmData | null>(null);
+  const [alarms, setAlarms] = useState<AlarmItem[]>([]);
 
 
   useEffect(() => {
@@ -32,18 +37,57 @@ export default function HomeScreen() {
     getPreviousTime();
   }, []);
 
+  // Alarm firing moved to global AlarmWatcher
+
   useFocusEffect(
     React.useCallback(() => {
-      const fetchAlarm = async () => {
-        const data = await AsyncStorage.getItem('alarmData');
-        if (data) {
-          const parsed = JSON.parse(data);
-          setSavedAlarm(parsed);
+      const fetchAlarms = async () => {
+        // migrate legacy single alarm if present
+        const legacy = await AsyncStorage.getItem('alarmData');
+        if (legacy) {
+          try {
+            const parsedLegacy = JSON.parse(legacy);
+            const legacyItem: AlarmItem = {
+              id: `${Date.now()}`,
+              enabled: true,
+              ...parsedLegacy,
+            };
+            const existingArrRaw = await AsyncStorage.getItem('alarms');
+            const existingArr = existingArrRaw ? JSON.parse(existingArrRaw) : [];
+            let updated;
+            if (Array.isArray(existingArr)) {
+              const exists = existingArr.some((a: any) => a.hour === legacyItem.hour && a.minute === legacyItem.minute && a.period === legacyItem.period);
+              updated = exists ? existingArr : [legacyItem, ...existingArr];
+            } else {
+              updated = [legacyItem];
+            }
+            await AsyncStorage.setItem('alarms', JSON.stringify(updated));
+            await AsyncStorage.removeItem('alarmData');
+          } catch {}
         }
+
+        const stored = await AsyncStorage.getItem('alarms');
+        const parsed: AlarmItem[] = stored ? JSON.parse(stored) : [];
+        setAlarms(Array.isArray(parsed) ? parsed : []);
       };
-      fetchAlarm();
+      fetchAlarms();
     }, [])
   );
+
+  const toggleAlarm = async (id: string, value: boolean) => {
+    const updated = alarms.map(a => (a.id === id ? { ...a, enabled: value } : a));
+    setAlarms(updated);
+    await AsyncStorage.setItem('alarms', JSON.stringify(updated));
+    if (!value) {
+      await stopAlarm();
+    }
+  };
+
+  const deleteAlarm = async (id: string) => {
+    const updated = alarms.filter(a => a.id !== id);
+    setAlarms(updated);
+    await AsyncStorage.setItem('alarms', JSON.stringify(updated));
+  };
 
   return (
     <View style={styles.container}>
@@ -71,9 +115,9 @@ export default function HomeScreen() {
         <Text style={styles.alarmLabel}>Action Steps</Text>
       </View>
 
-      {/* DYNAMIC ALARM CARDS  */}
-      {savedAlarm && (
-        <View style={styles.alarmCard}>
+      {/* DYNAMIC ALARM CARDS */}
+      {alarms.map((alarm) => (
+        <View key={alarm.id} style={styles.alarmCard}>
           <View style={styles.daysContainer}>
             {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
               <Text key={index} style={styles.dayText}>{day}</Text>
@@ -81,13 +125,18 @@ export default function HomeScreen() {
           </View>
           <View style={styles.alarmContent}>
             <Text style={styles.alarmTime}>
-              {`${savedAlarm.hour}:${savedAlarm.minute} ${savedAlarm.period}`}
+              {`${alarm.hour}:${alarm.minute} ${alarm.period}`}
             </Text>
-            <Switch value={true} />
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <Switch value={alarm.enabled !== false} onValueChange={(v) => toggleAlarm(alarm.id, v)} />
+              <TouchableOpacity onPress={() => deleteAlarm(alarm.id)} style={{ marginLeft: 12 }}>
+                <Ionicons name="trash" size={22} color="#ff6b6b" />
+              </TouchableOpacity>
+            </View>
           </View>
-          <Text style={styles.alarmLabel}>Action {savedAlarm.action}</Text>
+          <Text style={styles.alarmLabel}>Action {alarm.action}</Text>
         </View>
-      )}
+      ))}
     </View>
   );
 }

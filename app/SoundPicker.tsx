@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, FlatList } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "expo-router";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const sounds = ["Wakex", "Sunrise", "Applause", "Ring", "Birds"];
 
@@ -11,13 +12,25 @@ const SoundPicker: React.FC = () => {
 
   useEffect(() => {
     navigation.setOptions({
-      title: "Repeat",
+      title: "Sound",
       headerStyle: { backgroundColor: "#000" },
       headerTintColor: "#64B5F6", // Back button color
       headerTitleStyle: { color: "#FFFFFF" }, // Title color
       headerBackTitle: "Back", // "< Back"
     });
   }, [navigation]);
+
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('selectedSound');
+      if (stored) setSelectedSound(stored);
+    })();
+  }, []);
+
+  const onPick = async (sound: string) => {
+    setSelectedSound(sound);
+    await AsyncStorage.setItem('selectedSound', sound);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000", paddingTop: 20 }}>
@@ -27,7 +40,7 @@ const SoundPicker: React.FC = () => {
         keyExtractor={(item) => item}
         renderItem={({ item }) => (
           <TouchableOpacity
-            onPress={() => setSelectedSound(item)}
+            onPress={() => { onPick(item); (navigation as any).goBack(); }}
             style={{
               backgroundColor: "#1C1C1C",
               padding: 20,

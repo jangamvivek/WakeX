@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation } from "@react-navigation/native";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const days = [
   "Sunday",
@@ -27,10 +28,20 @@ const RepeatSelector = () => {
     });
   }, [navigation]);
 
-  const toggleDay = (day: string) => {
-    setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
-    );
+  useEffect(() => {
+    (async () => {
+      const stored = await AsyncStorage.getItem('selectedRepeat');
+      if (stored) setSelectedDays(JSON.parse(stored));
+      else setSelectedDays(['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday']);
+    })();
+  }, []);
+
+  const toggleDay = async (day: string) => {
+    setSelectedDays((prev) => {
+      const next = prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day];
+      AsyncStorage.setItem('selectedRepeat', JSON.stringify(next));
+      return next;
+    });
   };
 
   return (
@@ -39,7 +50,7 @@ const RepeatSelector = () => {
         <TouchableOpacity
           key={day}
           style={styles.dayItem}
-          onPress={() => toggleDay(day)}
+          onPress={() => { toggleDay(day); (navigation as any).goBack(); }}
         >
           <Text style={styles.dayText}>{day}</Text>
           {selectedDays.includes(day) && (
