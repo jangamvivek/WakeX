@@ -2,10 +2,12 @@
   "expo": {
     "name": "WakeX",
     "androidStatusBar": {
-      "hidden": true
+      "hidden": true,
+      "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anonymous.WakeX"
     },
     "slug": "WakeX",
     "version": "1.0.0",
@@ -18,7 +20,11 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "package": "com.anonymous.WakeX"
     },
     "web": {
       "bundler": "metro",
